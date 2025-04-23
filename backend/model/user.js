@@ -10,7 +10,7 @@ const userSchema =new mongoose.Schema({
         type: String,
         required: true},
     photo: {
-        required: String,},
+        type: String},
     role:{
         type: String,
         enum: ['farmer', 'buyer'],
