@@ -8,7 +8,7 @@ const cropSchema = new mongoose.Schema({
         type: Number,
         required: true},
     quantityKg: {
-        type: String,
+        type: Number,
         required: true},
     imageUrl:String,
     location:String,
