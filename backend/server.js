@@ -3,7 +3,7 @@ require('dotenv').config();
 const app = express();
 app.use(express.json());
 const db = require('./db.js');
-const port = 8592 || process.env.PORT;
+const port = process.env.PORT||8592 ;
 
 
 const User = require('./router/user.js');
