@@ -2,7 +2,7 @@ const User = require('../model/user');
 const userCreatePost = async (req, res) => {
     try {
         const { user, email, password, photo, role, phone } = req.body;
-        if (!user, !email, !password, !photo, !role, !phone) {
+        if (!user|| !email|| !password|| !photo|| !role|| !phone) {
             return res.status(400).json({
                 message: 'All fields are required!',
                 missingFields: {
