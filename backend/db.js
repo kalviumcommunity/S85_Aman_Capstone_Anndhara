@@ -2,7 +2,7 @@ const mongoose = require('mongoose')
 const connect = async () => {
     const Url = process.env.DB_URL;
     if (!Url) {
-        console.error('Database connection failed :DB_URl is defined in the environment variables');
+        console.error('Database connection failed :DB_URl is not defined in the environment variables');
         process.exit(1);
     }
 
