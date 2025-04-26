@@ -13,11 +13,11 @@ const Chat = require('./router/chat.js');
 const Rating = require('./router/rating.js');
 
 
-app.use('/aman', User);
-app.use('/aman', Crop);
-app.use('/aman', Order);
-app.use('/aman', Chat);
-app.use('/aman', Rating);
+app.use('/user', User);
+app.use('/crop', Crop);
+app.use('/order', Order);
+app.use('/chat', Chat);
+app.use('/rating', Rating);
 
 db.connect().then(()=>{
 
