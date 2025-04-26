@@ -55,11 +55,11 @@ const updateCrop = async (req, res) => {
         
         const updatedCrop=await Crop.findByIdAndUpdate(id,updateData,{new:true,runValidators:true});
         if(!updatedCrop){
-            return res.status(404).json({succees:false,message:'Crop not found'});
+            return res.status(404).json({success:false,message:'Crop not found'});
         }
-        return res.status(200).json({succees:true,message:'Crop updates successfully',data:updatedCrop});
+        return res.status(200).json({success:true,message:'Crop updates successfully',data:updatedCrop});
     } catch (error) {
-return res.status(500).json({succees:false,message:'Server error',error:error.message});
+return res.status(500).json({success:false,message:'Server error',error:error.message});
     }
 };
 module.exports = {
