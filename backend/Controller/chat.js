@@ -44,7 +44,7 @@ const createMessageGet = async (req, res) => {
         //fetch messages for farmer to buyer
         const senderId = new mongoose.Types.ObjectId(sender);
         const receiverId = new mongoose.Types.ObjectId(receiver);
-        const messages = await Message.find({
+        const messages = await Message.find({ 
             $or: [
                 { sender: senderId, receiver: receiverId },
                 { sender: receiverId, receiver: senderId },
