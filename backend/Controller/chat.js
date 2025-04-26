@@ -1,5 +1,5 @@
 const { default: mongoose } = require('mongoose');
-const Message = require('../model/chat');
+const Message = require('../model/Message');
 
 const createMessagePost = async (req, res) => {
     try {
@@ -33,9 +33,9 @@ const createMessagePost = async (req, res) => {
 const createMessageGet = async (req, res) => {
     try {
         const { sender, receiver } = req.query;
-        console.log(sender, receiver);
+      
         if (!sender || !receiver) {
-            console.log(sender, receiver);
+     
             return res.status(400).json({ message: 'Sender and receiver IDs are required' });
         }
         if (!mongoose.Types.ObjectId.isValid(sender) || !mongoose.Types.ObjectId.isValid(receiver)) {
@@ -49,7 +49,7 @@ const createMessageGet = async (req, res) => {
                 { sender: senderId, receiver: receiverId },
                 { sender: receiverId, receiver: senderId },
             ]
-        }).sort({ createdAt: 1 });
+        }).populate('sender receiver', 'user email').sort({ createdAt: 1 });
 
 
         return res.status(200).json({messages});
