@@ -1,4 +1,4 @@
-const { default: mongoose } = require('mongoose');
+const mongoose  = require('mongoose');
 const Message = require('../model/Message');
 
 const createMessagePost = async (req, res) => {
@@ -63,6 +63,9 @@ const createMessageGet = async (req, res) => {
 const createMessagePut = async (req, res) => {
     try {
         const { id } = req.params;
+        if(!mongoose.Types.ObjectId.isValid(id)){
+            return res.status(400).json({error:'Invalid message ID.'})
+        }
         const { message, read } = req.body;
 
         if (!message && read === undefined) {
