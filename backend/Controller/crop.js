@@ -1,4 +1,4 @@
-const Crop = require('../model/crop');
+const Crop = require('../model/Crop');
 
 const createCrop = async (req, res) => {
     try {
@@ -23,7 +23,7 @@ const getCrops=async (req,res) => {
         
         const {cropId}=req.query;
         if(cropId){
-            const crop=await Crop.findById(cropId).populate('seller','user, email,phone role').exec();
+            const crop=await Crop.findById(cropId).populate('seller','user email phone role').exec();
             if(!crop){
                 return res.status(404).json({message:'Crop not found'});
             }
@@ -31,7 +31,7 @@ const getCrops=async (req,res) => {
         }
         
         // all Crop
-        const crops =await Crop.find().populate('seller','user email phone role').exec();
+        const crops =await Crop.find().populate('seller', 'user email phone role').exec();
         return res.status(200).json({message:'Crop retrieved Successfully',crops})
     } catch (error) {
         console.error('Error fetching crops:',error);
