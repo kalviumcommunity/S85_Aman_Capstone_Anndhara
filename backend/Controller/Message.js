@@ -33,9 +33,9 @@ const createMessagePost = async (req, res) => {
 const createMessageGet = async (req, res) => {
     try {
         const { sender, receiver } = req.query;
-      
+
         if (!sender || !receiver) {
-     
+
             return res.status(400).json({ message: 'Sender and receiver IDs are required' });
         }
         if (!mongoose.Types.ObjectId.isValid(sender) || !mongoose.Types.ObjectId.isValid(receiver)) {
@@ -44,7 +44,7 @@ const createMessageGet = async (req, res) => {
         //fetch messages for farmer to buyer
         const senderId = new mongoose.Types.ObjectId(sender);
         const receiverId = new mongoose.Types.ObjectId(receiver);
-        const messages = await Message.find({ 
+        const messages = await Message.find({
             $or: [
                 { sender: senderId, receiver: receiverId },
                 { sender: receiverId, receiver: senderId },
@@ -52,15 +52,58 @@ const createMessageGet = async (req, res) => {
         }).populate('sender receiver', 'user email').sort({ createdAt: 1 });
 
 
-        return res.status(200).json({messages});
-    } catch (error) {   
+        return res.status(200).json({ messages });
+    } catch (error) {
         console.error(error);
 
         return res.status(500).json({ message: 'Server Error', error })
     }
 }
 
+const createMessagePut = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { message, read } = req.body;
+
+        if (!message && read === undefined) {
+            return res.status(400).json({ message: 'At least one field (message or read) is required to update' });
+        }
+        const updateData={};
+        if(message)updateData.message=message;
+        if(read!==undefined)updateData.read=read;
+
+        const updatesMessage=await Message.findByIdAndUpdate(id,updateData,{new:true,
+            runValidators:true,
+        });
+        if(!updatesMessage){
+            return res.status(404).json({
+                success:false,
+                message:'Message not found',
+            });
+
+        }
+        return res.status(200).json({
+            success:true,
+            message:'Message update successfull',
+            data:updatesMessage,
+        });
+        
+        
+        
+    } catch (error) {
+        return res.status(500).json({
+            success:false,
+            message:'Server error while updating messages.',
+            data:error.message,
+        });
+        
+    }
+}
+
+
+
 module.exports = {
     createMessagePost,
-    createMessageGet
+    createMessageGet,
+    createMessagePut
 }
