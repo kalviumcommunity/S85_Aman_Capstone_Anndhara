@@ -28,6 +28,24 @@ const userCreatePost = async (req, res) => {
         })
     }
 }
+const userCreateGet=async (req,res) => {
+    try {
+        
+        const user=await User.find({},-'password');
+        return res.status(200).json({
+            message:'User fetched scucessfull! ',
+            success:true,
+            data:user,
+        });
+    } catch (error) {
+        return res.json({message:'Server error occurred while fetching Users. ',
+            success:false,
+            data:error.message,
+        })
+    }
+
+}
 module.exports = {
-    userCreatePost
+    userCreatePost,
+    userCreateGet
 }
