@@ -33,7 +33,7 @@ const userCreateGet = async (req, res) => {
 
         const user = await User.find({}).select('-password');
         return res.status(200).json({
-            message: 'User fetched scucessfull! ',
+            message: 'User fetched sucessfully! ',
             success: true,
             data: user,
         });
