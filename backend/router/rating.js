@@ -1,8 +1,11 @@
 const express=require('express');
 const router=express.Router();
-const{createReview}=require('../Controller/rating')
+const{createReview,getReviews}=require('../Controller/rating')
 
-router.post('/rating',createReview);
+router.post('/Review',createReview);
+
+
+router.get('/getReview',getReviews);
 
 
 
