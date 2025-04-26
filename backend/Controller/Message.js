@@ -87,7 +87,7 @@ const createMessagePut = async (req, res) => {
         }
         return res.status(200).json({
             success:true,
-            message:'Message update successfull',
+            message:'Message update successfully',
             data:updatesMessage,
         });
         
