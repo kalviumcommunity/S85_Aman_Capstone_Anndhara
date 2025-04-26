@@ -51,15 +51,15 @@ const updateCrop = async (req, res) => {
         if (quantityKg !== undefined) updateData.quantityKg = quantityKg;
         if (imageUrl) updateData.imageUrl = imageUrl;
         if (location) updateData.location = location;
-        if (available!==undefined) updateData.available = available;
-        
-        const updatedCrop=await Crop.findByIdAndUpdate(id,updateData,{new:true,runValidators:true});
-        if(!updatedCrop){
-            return res.status(404).json({success:false,message:'Crop not found'});
+        if (available !== undefined) updateData.available = available;
+
+        const updatedCrop = await Crop.findByIdAndUpdate(id, updateData, { new: true, runValidators: true });
+        if (!updatedCrop) {
+            return res.status(404).json({ success: false, message: 'Crop not found' });
         }
-        return res.status(200).json({success:true,message:'Crop updates successfully',data:updatedCrop});
+        return res.status(200).json({ success: true, message: 'Crop updated successfully', data: updatedCrop });
     } catch (error) {
-return res.status(500).json({success:false,message:'Server error',error:error.message});
+        return res.status(500).json({ success: false, message: 'Server error', error: error.message });
     }
 };
 module.exports = {
