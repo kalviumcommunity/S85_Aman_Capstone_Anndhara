@@ -1,4 +1,4 @@
-const Crop = require('../model/Crop');
+const Crop = require('../model/crop');
 
 const createCrop = async (req, res) => {
     try {
