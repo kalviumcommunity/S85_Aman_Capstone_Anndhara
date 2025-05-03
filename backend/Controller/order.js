@@ -1,6 +1,6 @@
 const { default: mongoose } = require('mongoose');
 const Order = require('../model/order');
-
+// http://localhost:9001/order/result
 const createOrder = async (req, res) => {
     try {
         const { buyer, crop, quantityOrdered, status } = req.body;
@@ -24,7 +24,7 @@ const createOrder = async (req, res) => {
         return res.status(500).json({ succees: false, message: error.message })
     }
 }
-
+// http://localhost:9001/order/getResult?buyer=680b7ef2d2de61db25949891&status=pending
 const getOrders = async (req, res) => {
     try {
 
@@ -53,7 +53,7 @@ const getOrders = async (req, res) => {
     }
 
 }
-
+//http://localhost:9001/order/update/680cf10331cfd43b4a28736d
 const updateOrder = async (req, res) => {
     try {
         const { id } = req.params;

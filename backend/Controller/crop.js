@@ -1,5 +1,5 @@
 const Crop = require('../model/crop');
-
+// http://localhost:9001/crop/crop
 const createCrop = async (req, res) => {
     try {
 
@@ -17,7 +17,7 @@ const createCrop = async (req, res) => {
         return res.status(500).json({ succees: false, message: error.message })
     }
 }
-
+// http://localhost:9001/crop/AllCrop?cropId=680a726b838f7fd94382044f
 const getCrops = async (req, res) => {
     try {
 
@@ -39,6 +39,7 @@ const getCrops = async (req, res) => {
 
     }
 }
+// http://localhost:9001/crop/update/680a726b838f7fd94382044f
 const updateCrop = async (req, res) => {
     try {
         const { id } = req.params;
