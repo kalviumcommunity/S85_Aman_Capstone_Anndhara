@@ -1,6 +1,6 @@
 const mongoose  = require('mongoose');
 const Message = require('../model/Message');
-
+// http://localhost:9001/Message/chat
 const createMessagePost = async (req, res) => {
     try {
 
@@ -29,7 +29,7 @@ const createMessagePost = async (req, res) => {
     }
 
 }
-
+//http://localhost:9001/Message/review?sender=680a73d587b61661e48df762&receiver=680b7ef2d2de61db25949891
 const createMessageGet = async (req, res) => {
     try {
         const { sender, receiver } = req.query;
@@ -60,6 +60,7 @@ const createMessageGet = async (req, res) => {
     }
 }
 
+//http://localhost:9001/Message/update/680cd16690cde7849d67e2ab
 const createMessagePut = async (req, res) => {
     try {
         const { id } = req.params;

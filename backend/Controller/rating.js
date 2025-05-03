@@ -1,5 +1,5 @@
 const Rating = require('../model/Rating');
-
+// http://localhost:9001/rating/Review
 const createReview = async (req, res) => {
     try {
         const { reviewer, reviewedUser, rating, comment } = req.body;
@@ -22,6 +22,7 @@ const createReview = async (req, res) => {
     }
 
 }
+//http://localhost:9001/rating/getReview
 const getReviews = async (req, res) => {
     try {
         const reviews = await Rating.find().populate('reviewer', 'name').populate('reviewedUser', 'name').sort({ createdAt: -1 });
@@ -35,6 +36,7 @@ const getReviews = async (req, res) => {
 
     }
 }
+//http://localhost:9001/rating/update/680a7327838f7fd943820455
 const putReviews = async (req, res) => {
     try {
         const { id } = req.params;

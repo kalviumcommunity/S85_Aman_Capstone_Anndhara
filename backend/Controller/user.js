@@ -1,12 +1,13 @@
 const User = require('../model/user');
+// http://localhost:9001/user/register
 const userCreatePost = async (req, res) => {
     try {
-        const { user, email, password, photo, role, phone } = req.body;
-        if (!user || !email || !password || !role || !phone) {
+        const { username, email, password, photo, role, phone } = req.body;
+        if (!username || !email || !password || !role || !phone) {
             return res.status(400).json({
                 message: 'All fields are required!',
                 missingFields: {
-                    user: !user ? 'User is required' : undefined,
+                    username: !username ? 'User is required' : undefined,
                     email: !email ? 'Email is required' : undefined,
                     password: !password ? 'Password is required' : undefined,
                     phone: !phone ? 'Phone is required' : undefined,
@@ -15,7 +16,7 @@ const userCreatePost = async (req, res) => {
             });
         }
         const newUser = new User({
-            user, email, password, photo, role, phone
+            username, email, password, photo, role, phone
         });
         await newUser.save();
         return res.status(201).json({ message: 'User is created successfully!', success: true, data: newUser })
@@ -28,10 +29,23 @@ const userCreatePost = async (req, res) => {
         })
     }
 }
+// http://localhost:9001/user
 const userCreateGet = async (req, res) => {
     try {
+        // const { username, password } = req.query;
+        // if (username && password) {
+        //     const user1 = await User.findOne({ username, password });
+        //     if (!user1) {
+        //         return res.status(404).json({
+        //             message: 'User not found with the provided credentials',
+        //             success: false,
+        //             data: null,
+        //         })
+        //     }
+        //     return res.status(200).json({ message: 'User is found', success: true, data: user1 });
+        // }
 
-        const user = await User.find({}).select('-password');
+        const user = await User.find({});
         return res.status(200).json({
             message: 'User fetched sucessfully! ',
             success: true,
@@ -46,7 +60,7 @@ const userCreateGet = async (req, res) => {
     }
 
 }
-
+//http://localhost:9001/user/update/680b7ef2d2de61db25949891
 const userCreatePut = async (req, res) => {
     const { user, email, password, photo, role, phone } = req.body;
     try {
@@ -77,15 +91,17 @@ const userCreatePut = async (req, res) => {
             });
         }
 
-        return res.status(200).json({message:'User Update Sucessfully!',
-            success:true,
-            data:updatedUser,
+        return res.status(200).json({
+            message: 'User Update Sucessfully!',
+            success: true,
+            data: updatedUser,
         })
     } catch (error) {
-return res.status(500).json({message:'Server error occurred while updating user.',
-    success:false,
-    error:error.message,
-});
+        return res.status(500).json({
+            message: 'Server error occurred while updating user.',
+            success: false,
+            error: error.message,
+        });
     }
 }
 
