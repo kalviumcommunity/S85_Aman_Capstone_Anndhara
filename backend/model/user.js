@@ -27,6 +27,12 @@ const userSchema = new mongoose.Schema({
         required: true
     },
     profileImage: String,
+    googleId:{
+        type:String,
+        unique:true,
+        sparse:true,
+    },
+
 }, { timestamps: true });
 
 
@@ -51,11 +57,11 @@ userSchema.pre('save', async function (next) {
 
 
 
-userSchema.methods.comparePassword = async function(candidatePassword) {
+userSchema.methods.comparePassword = async function (candidatePassword) {
     try {
         return await bcrypt.compare(candidatePassword, this.password);
-    
-           
+
+
 
     } catch (error) {
         throw error;
