@@ -1,34 +1,120 @@
-const express = require('express')
+// === server.js ===
+const express = require('express');
 require('dotenv').config();
+const fs = require('fs');
+const http = require('http');
+const cors = require('cors');
+const passport = require('./auth.js');
+const { Server } = require('socket.io');
+const db = require('./db.js');
+const Message = require('./model/Message');
 
 const app = express();
+const server = http.createServer(app);
+
+const io = new Server(server, {
+  cors: {
+    origin: process.env.FRONTEND_URL || '*',
+    methods: ['GET', 'POST'],
+  },
+});
+
+// Middlewares
 app.use(express.json());
-const db = require('./db.js');
-const port = process.env.PORT||8592 ;
+app.use(cors({
+  origin: process.env.FRONTEND_URL || '*',
+  credentials: true,
+}));
 
+app.use((req, res, next) => {
+  // console.log(`[${new Date().toLocaleString()}] Request Made to: ${req.originalUrl}`);
+  next();
+});
 
+// Ensure uploads folder exists
+if (!fs.existsSync('./uploads')) fs.mkdirSync('./uploads');
+app.use('/uploads', express.static('uploads'));
 
-const User = require('./router/user.js');
-const Crop = require('./router/crop.js');
-const Order = require('./router/order.js');
-const Message = require('./router/Message.js');
-const Rating = require('./router/rating.js');
+// Auth
+app.use(passport.initialize());
 
+// Routes
+app.use('/auth', require('./router/auth.js'));
+app.use('/user', require('./router/user.js'));
+app.use('/crop', require('./router/crop.js'));
+app.use('/order', require('./router/order.js'));
+app.use('/message', require('./router/Message.js'));
+app.use('/rating', require('./router/rating.js'));
 
-app.use('/user', User);
-app.use('/crop', Crop);
-app.use('/order', Order);
-app.use('/Message', Message);
-app.use('/rating', Rating);
+// Socket.IO map
+const users = {}; // userId -> socketId
 
-db.connect().then(()=>{
+io.on('connection', (socket) => {
+  // console.log('✅ New client connected:', socket.id);
 
-    
-    app.listen(port, () => {
-        console.log(`http://localhost:${port}`);
-        
-    })
-    }).catch((error) =>{
-    console.error('DataBase connection failed:',error.message);
-    
-})
+  socket.on('join', (userId) => {
+    users[userId] = socket.id;
+    // console.log(`👤 User ${userId} connected with socket ID ${socket.id}`);
+  });
+
+  socket.on('sendMessage', async ({ sender, receiver, content, cropId }) => {
+    const receiverSocket = users[receiver];
+    // Save message to DB
+    try {
+      const messageData = {
+        sender,
+        receiver,
+        content,
+        cropId: cropId || null
+      };
+      const message = new Message(messageData);
+      await message.save();
+      // Emit to receiver if online
+      if (receiverSocket) {
+        io.to(receiverSocket).emit('receiveMessage', {
+          sender,
+          receiver,
+          content,
+          cropId: cropId || null,
+          createdAt: message.createdAt,
+        });
+      }
+      // Optionally, emit to sender for confirmation
+      socket.emit('receiveMessage', {
+        sender,
+        receiver,
+        content,
+        cropId: cropId || null,
+        createdAt: message.createdAt,
+      });
+    } catch (err) {
+      socket.emit('error', { message: 'Failed to save message', error: err.message });
+    }
+  });
+
+  socket.on('typing', ({ sender, receiver }) => {
+    const receiverSocket = users[receiver];
+    if (receiverSocket) {
+      io.to(receiverSocket).emit('typing', { sender });
+    }
+  });
+
+  socket.on('disconnect', () => {
+    const user = Object.entries(users).find(([_, id]) => id === socket.id);
+    if (user) {
+      delete users[user[0]];
+      // console.log(`❌ User ${user[0]} disconnected`);
+    } else {
+      // console.log(`❌ Unknown socket disconnected: ${socket.id}`);
+    }
+  });
+});
+
+const port = process.env.PORT || 9001;
+db.connect().then(() => {
+  server.listen(port, () => {
+    // console.log(`🚀 Socket.IO server running at http://localhost:${port}`);
+  });
+}).catch((err) => {
+  console.error('❌ Database connection failed:', err.message);
+});

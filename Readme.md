@@ -62,7 +62,7 @@
 
 | Feature | Description |
 |--------|-------------|
-| 🔐 JWT Auth | Secure token-based login |
+| 🔐 JWT Auth | Secure token-based login | passport 
 | 🔑 Bcrypt | Password hashing for safety |
 | 🧭 Role Based | Different views for buyers and farmers |
 

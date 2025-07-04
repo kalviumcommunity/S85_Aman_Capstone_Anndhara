@@ -1,12 +1,13 @@
 const { default: mongoose } = require('mongoose');
 const Order = require('../model/order');
-
+const { handleServerError } = require('../utils/errorHandler');
+// http://localhost:9001/order/result
 const createOrder = async (req, res) => {
     try {
         const { buyer, crop, quantityOrdered, status } = req.body;
         if (!buyer || !crop || !quantityOrdered || !status) {
             return res.status(400).json({
-                succees: false,
+                success: false,
                 message: 'Buyer, Crop, and quantityOrdered are required.'
             });
         }
@@ -15,16 +16,15 @@ const createOrder = async (req, res) => {
         });
         await newOrder.save();
         return res.status(201).json({
-            succees: true,
+            success: true,
             message: 'Order placed successfully!',
             data: newOrder
         })
     } catch (error) {
-        console.error(error);
-        return res.status(500).json({ succees: false, message: error.message })
+        return handleServerError(res, error, 'Server error during order placement');
     }
 }
-
+// http://localhost:9001/order/getResult?buyer=680b7ef2d2de61db25949891&status=pending
 const getOrders = async (req, res) => {
     try {
 
@@ -48,47 +48,41 @@ const getOrders = async (req, res) => {
         return res.status(200).json({ message: 'Order retrieved Successfully', orders })
 
     } catch (error) {
-
-        return res.status(500).json({ message: 'Server error', error });
+        return handleServerError(res, error, 'Server error during order retrieval');
     }
 
 }
-
+//http://localhost:9001/order/update/680cf10331cfd43b4a28736d
 const updateOrder = async (req, res) => {
     try {
         const { id } = req.params;
         const { quantityOrdered, status } = req.body;
         if (!quantityOrdered && !status) {
-return res.status(400).json({
-    succees:false,
-    message:" At least 'quantityOrdered ' or 'status' field is required to updates. ",
-});
+            return res.status(400).json({
+                success: false,
+                message: " At least 'quantityOrdered ' or 'status' field is required to updates. ",
+            });
         }
-        const updateData={};
-        if(quantityOrdered)updateData.quantityOrdered=quantityOrdered;
-        if(status)updateData.status=status;
+        const updateData = {};
+        if (quantityOrdered) updateData.quantityOrdered = quantityOrdered;
+        if (status) updateData.status = status;
 
-        const updateOrder=await Order.findByIdAndUpdate(id,updateData,{new:true,runValidators:true});
+        const updateOrder = await Order.findByIdAndUpdate(id, updateData, { new: true, runValidators: true });
 
-        if(!updateOrder){
+        if (!updateOrder) {
             return res.status(404).json({
-                succees:false,
-                message:'Order not found',
+                success: false,
+                message: 'Order not found',
 
             })
         }
         return res.status(200).json({
-            succees:true,
-            message:'Order updates Successfully!',
-            data:updateOrder,
+            success: true,
+            message: 'Order updates Successfully!',
+            data: updateOrder,
         });
     } catch (error) {
-        return res.status(500).json({
-            succees:false,
-            message:'Server error while updating order ',
-            error:error.message,
-        });
-
+        return handleServerError(res, error, 'Server error during order update');
     }
 }
 

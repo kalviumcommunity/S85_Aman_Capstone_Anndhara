@@ -1,5 +1,6 @@
 const Rating = require('../model/Rating');
-
+const { handleServerError } = require('../utils/errorHandler');
+// http://localhost:9001/rating/Review
 const createReview = async (req, res) => {
     try {
         const { reviewer, reviewedUser, rating, comment } = req.body;
@@ -16,25 +17,24 @@ const createReview = async (req, res) => {
         return res.status(201).json({ message: 'Review created successfull', newReview });
 
     } catch (error) {
-        console.error(error);
-        return res.status(500).json({ succees: false, message: error.message, });
-
+        return handleServerError(res, error, 'Server error during ...');
     }
-
 }
+//http://localhost:9001/rating/getReview
 const getReviews = async (req, res) => {
     try {
-        const reviews = await Rating.find().populate('reviewer', 'name').populate('reviewedUser', 'name').sort({ createdAt: -1 });
-        return res.status(200).json(reviews);
-    } catch (error) {
-        console.error(error);
-        return res.status(500).json({
-            success: false,
-            message: error.message,
+        const reviews = await Rating.find().populate('reviewer', 'username').populate('reviewedUser', 'username').sort({ createdAt: -1 });
+    
+        
+        return res.status(200).json({
+            ok:true,
+            rating:reviews
         });
-
+    } catch (error) {
+        return handleServerError(res, error, 'Server error during ...');
     }
 }
+//http://localhost:9001/rating/update/680a7327838f7fd943820455
 const putReviews = async (req, res) => {
     try {
         const { id } = req.params;
@@ -48,9 +48,7 @@ const putReviews = async (req, res) => {
         }
         return res.status(200).json({ success: true, message: 'Rating update successfully', data: updatedRating })
     } catch (error) {
-        console.error('Error updating rating ', error);
-        return res.status(500).json({ success: false, message: 'Server error ', error: error.message })
-
+        return handleServerError(res, error, 'Server error during ...');
     }
 }
 module.exports = {
