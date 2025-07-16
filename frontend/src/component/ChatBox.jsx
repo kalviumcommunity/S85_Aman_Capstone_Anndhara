@@ -16,7 +16,7 @@ axios.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-const ChatBox = ({ user, otherUser }) => {
+const ChatBox = ({ user, otherUser, orderId, cartItemId, cropId: propCropId }) => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [typing, setTyping] = useState(false);
@@ -43,16 +43,18 @@ const ChatBox = ({ user, otherUser }) => {
   const safeUser = user ? { ...user, _id: user._id || user.id } : null;
   const safeOtherUser = otherUser ? { ...otherUser, _id: otherUser._id || otherUser.id } : null;
 
+  // Use cropId prop directly
+  const cropId = propCropId;
+
   useEffect(() => {
     if (!safeUser || !safeOtherUser || isTokenExpired(safeUser.token)) return;
-
-    // Get crop context from URL parameters
-    const urlParams = new URLSearchParams(location.search);
-    const cropId = urlParams.get('cropId');
-    if (cropId) {
-      setCropContext({ cropId });
+    if (!cropId) {
+      setError('This chat requires a valid cropId. Please access chat from a crop listing.');
+      setLoading(false);
+      console.warn('ChatBox: cropId is undefined, not fetching messages.');
+      return;
     }
-
+    setCropContext({ cropId });
     socket.emit('join', safeUser._id);
 
     // Fetch chat history
@@ -63,29 +65,26 @@ const ChatBox = ({ user, otherUser }) => {
           setError('Your session has expired. Please log in again.');
           return;
         }
-        // Debug log for IDs and roles
-        if (import.meta.env.MODE === 'development') console.log('Fetching messages:', { userId: safeUser._id, otherUserId: safeOtherUser._id, userRole: safeUser.role, otherUserRole: safeOtherUser.role });
-        const res = await axios.get(`http://localhost:9001/message/${safeUser._id}/${safeOtherUser._id}`);
+        if (!cropId) return; // Guard: don't fetch if cropId is missing
+        let url = `http://localhost:9001/message/${safeUser._id}/${safeOtherUser._id}`;
+        url += `?cropId=${cropId}`;
+        const res = await axios.get(url);
         setMessages(res.data.messages || []);
       } catch (err) {
-        if (import.meta.env.MODE === 'development') console.error('Error fetching messages:', err);
-        if (err.response && err.response.status === 403) {
-          setError('You are not authorized to view this chat. Please check your login status and roles.');
-        } else {
-          setError('Could not load chat history. Please try again.');
-        }
+        setError('Could not load chat history. Please try again.');
       } finally {
         setLoading(false);
       }
     };
-
-    fetchMessages();
+    if (cropId) fetchMessages();
 
     // Listen for new messages
     socket.on('receiveMessage', (msg) => {
       if ((msg.sender === safeOtherUser._id && msg.receiver === safeUser._id) ||
           (msg.sender === safeUser._id && msg.receiver === safeOtherUser._id)) {
-        setMessages((prev) => [...prev, msg]);
+        if (msg.cropId === cropId) {
+          setMessages((prev) => [...prev, msg]);
+        }
       }
     });
 
@@ -101,7 +100,7 @@ const ChatBox = ({ user, otherUser }) => {
       socket.off('receiveMessage');
       socket.off('typing');
     };
-  }, [user, otherUser, location.search]);
+  }, [user, otherUser, cropId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -114,15 +113,16 @@ const ChatBox = ({ user, otherUser }) => {
       setError('Your session has expired. Please log in again.');
       return;
     }
-
-    const msg = { 
-      receiver: safeOtherUser._id, 
+    if (!cropId) {
+      setError('This chat requires a valid cropId.');
+      return;
+    }
+    const msg = {
+      receiver: safeOtherUser._id,
       content: input.trim(),
-      cropId: cropContext?.cropId || null
+      cropId,
     };
-
     try {
-      // Emit to socket only (no REST POST)
       socket.emit('sendMessage', { ...msg, sender: safeUser._id });
       setInput('');
     } catch (err) {
@@ -135,8 +135,58 @@ const ChatBox = ({ user, otherUser }) => {
     socket.emit('typing', { sender: safeUser._id, receiver: safeOtherUser._id });
   };
 
+  const handleClearMessages = async () => {
+    try {
+      const body = {
+        userId: safeUser._id,
+        otherUserId: safeOtherUser._id,
+      };
+      if (orderId) body.orderId = orderId;
+      else if (cartItemId) body.cartItemId = cartItemId;
+      else if (cropContext && cropContext.cropId) body.cropId = cropContext.cropId;
+      const res = await fetch('http://localhost:9001/message/clear', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${user.token}`,
+        },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setMessages([]);
+      }
+    } catch (err) {
+      setError('Failed to clear messages.');
+    }
+  };
+
   if (!safeUser || !safeOtherUser) {
     return <div className="text-center p-4">Please login to chat.</div>;
+  }
+  if (!cropId) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="max-w-lg mx-auto bg-white rounded-lg shadow-md p-8 text-center">
+          <h2 className="text-2xl font-bold text-red-600 mb-4">Chat Unavailable</h2>
+          <p className="text-lg text-gray-700 mb-4">
+            This chat requires a valid <span className="font-semibold">cropId</span>.<br />
+            Please access chat from a crop listing.
+          </p>
+          <input
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 mt-4 bg-gray-100 cursor-not-allowed"
+            placeholder="Type a message..."
+            disabled
+          />
+          <button
+            className="bg-green-600 text-white px-4 py-2 rounded-lg mt-2 opacity-50 cursor-not-allowed"
+            disabled
+          >
+            Send
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -150,17 +200,27 @@ const ChatBox = ({ user, otherUser }) => {
             </h2>
             <p className="text-sm opacity-90">
               {safeOtherUser.role === 'farmer' ? 'Farmer' : 'Buyer'}
-              {cropContext && (
-                <span className="ml-2">• About specific crop</span>
+              {orderId && (
+                <span className="ml-2">• About Order</span>
               )}
             </p>
           </div>
-          <button
-            onClick={() => navigate(-1)}
-            className="text-white hover:text-gray-200"
-          >
-            ← Back
-          </button>
+          <div className="flex gap-2 items-center">
+            {(orderId || cartItemId || (cropContext && cropContext.cropId)) && (
+              <button
+                onClick={handleClearMessages}
+                className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 text-xs font-semibold"
+              >
+                Clear All Messages
+              </button>
+            )}
+            <button
+              onClick={() => navigate(-1)}
+              className="text-white hover:text-gray-200"
+            >
+              ← Back
+            </button>
+          </div>
         </div>
 
         {/* Messages */}
@@ -219,10 +279,11 @@ const ChatBox = ({ user, otherUser }) => {
               onChange={handleInput}
               placeholder="Type a message..."
               className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+              disabled={!cropId}
             />
             <button
-              type="submit"
-              disabled={!input.trim()}
+              type='submit'
+              disabled={!input.trim() || !cropId}
               className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Send

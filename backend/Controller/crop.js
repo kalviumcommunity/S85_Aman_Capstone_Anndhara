@@ -1,4 +1,4 @@
-const Crop = require('../model/Crop');
+const Crop = require('../model/crop');
 const { handleServerError } = require('../utils/errorHandler');
 // http://localhost:9001/crop/crop
 const createCrop = async (req, res) => {

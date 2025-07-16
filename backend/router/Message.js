@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getMessages, sendMessage, getBuyersForFarmer, testMessageModel, createTestData, minimalTest, markMessagesAsRead, getUnreadCountsForFarmer } = require('../Controller/Message');
+const { getMessages, sendMessage, getBuyersForFarmer, testMessageModel, createTestData, minimalTest, markMessagesAsRead, getUnreadCountsForFarmer, clearChatMessages } = require('../Controller/Message');
 const verifyToken = require('../middleware/verifyToken');
 
 // Completely minimal test route
@@ -37,5 +37,8 @@ router.post('/mark-read/:farmerId/:buyerId', verifyToken, markMessagesAsRead);
 // Generic routes last
 router.get('/:userId/:otherUserId', verifyToken, getMessages); // fetch chat history
 router.post('/', verifyToken, sendMessage); // send a message
+
+// Clear all messages for a given orderId, cartItemId, or cropId between two users
+router.delete('/clear', verifyToken, clearChatMessages);
 
 module.exports = router;

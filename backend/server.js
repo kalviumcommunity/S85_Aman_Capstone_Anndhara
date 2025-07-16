@@ -8,6 +8,7 @@ const passport = require('./auth.js');
 const { Server } = require('socket.io');
 const db = require('./db.js');
 const Message = require('./model/Message');
+const Notification = require('./model/Notification');
 
 const app = express();
 const server = http.createServer(app);
@@ -45,6 +46,9 @@ app.use('/crop', require('./router/crop.js'));
 app.use('/order', require('./router/order.js'));
 app.use('/message', require('./router/Message.js'));
 app.use('/rating', require('./router/rating.js'));
+app.use('/cart', require('./router/cart.js'));
+app.use('/favorite', require('./router/favorite.js'));
+app.use('/notification', require('./router/notification.js'));
 
 // Socket.IO map
 const users = {}; // userId -> socketId
@@ -57,7 +61,7 @@ io.on('connection', (socket) => {
     // console.log(`👤 User ${userId} connected with socket ID ${socket.id}`);
   });
 
-  socket.on('sendMessage', async ({ sender, receiver, content, cropId }) => {
+  socket.on('sendMessage', async ({ sender, receiver, content, cropId, orderId }) => {
     const receiverSocket = users[receiver];
     // Save message to DB
     try {
@@ -65,7 +69,8 @@ io.on('connection', (socket) => {
         sender,
         receiver,
         content,
-        cropId: cropId || null
+        cropId: cropId || null,
+        orderId: orderId || null
       };
       const message = new Message(messageData);
       await message.save();
@@ -76,6 +81,7 @@ io.on('connection', (socket) => {
           receiver,
           content,
           cropId: cropId || null,
+          orderId: orderId || null,
           createdAt: message.createdAt,
         });
       }
@@ -85,10 +91,32 @@ io.on('connection', (socket) => {
         receiver,
         content,
         cropId: cropId || null,
+        orderId: orderId || null,
         createdAt: message.createdAt,
       });
     } catch (err) {
       socket.emit('error', { message: 'Failed to save message', error: err.message });
+    }
+  });
+
+  // Listen for notification creation and emit to farmer
+  socket.on('notifyFarmer', async ({ user, crop, order, type, message }) => {
+    try {
+      const notification = new Notification({ user, crop, order, type, message });
+      await notification.save();
+      const farmerSocket = users[user];
+      if (farmerSocket) {
+        io.to(farmerSocket).emit('newNotification', {
+          user,
+          crop,
+          order,
+          type,
+          message,
+          createdAt: notification.createdAt,
+        });
+      }
+    } catch (err) {
+      socket.emit('error', { message: 'Failed to create notification', error: err.message });
     }
   });
 

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 
 const getImageUrl = (imageUrl) => {
-  if (!imageUrl) return 'https://via.placeholder.com/300x200?text=No+Image';
+  if (!imageUrl) return null;
   return imageUrl.startsWith('http')
     ? imageUrl
     : `http://localhost:9001${imageUrl}`;
@@ -23,6 +23,10 @@ const CropDetails = () => {
   const [submitMessage, setSubmitMessage] = useState('');
   const [ratingError, setRatingError] = useState('');
   const [commentError, setCommentError] = useState('');
+  const [showOrderForm, setShowOrderForm] = useState(false);
+  const [orderQuantity, setOrderQuantity] = useState('');
+  const [orderMessage, setOrderMessage] = useState('');
+  const [addCartMessage, setAddCartMessage] = useState('');
 
   const user = JSON.parse(localStorage.getItem('user'));
 
@@ -146,6 +150,36 @@ const CropDetails = () => {
     }
   };
 
+  const handleAddToCart = async () => {
+    if (!user || user.role !== 'buyer') {
+      setAddCartMessage('You must be logged in as a buyer to add to cart.');
+      return;
+    }
+    try {
+      const res = await fetch('http://localhost:9001/cart/add', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${user.token}`,
+        },
+        body: JSON.stringify({
+          cropId: crop._id,
+          quantity: 1,
+          proposedPrice: crop.pricePerKg,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setAddCartMessage('Added to cart!');
+      } else {
+        setAddCartMessage(data.error || 'Failed to add to cart.');
+      }
+    } catch (err) {
+      setAddCartMessage('Failed to add to cart.');
+    }
+    setTimeout(() => setAddCartMessage(''), 2000);
+  };
+
   if (loadingCrop) {
     return <p className="text-center mt-8 text-green-700">Loading crop details...</p>;
   }
@@ -161,11 +195,13 @@ const CropDetails = () => {
       </button>
 
       <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-md p-6">
-        <img
-          src={getImageUrl(crop.imageUrl)}
-          alt={crop.name}
-          className="rounded w-full h-64 object-cover mb-4 border"
-        />
+        {getImageUrl(crop.imageUrl) && (
+          <img
+            src={getImageUrl(crop.imageUrl)}
+            alt={crop.name}
+            className="rounded w-full h-64 object-cover mb-4 border"
+          />
+        )}
         <h2 className="text-2xl font-bold text-green-700 mb-2">{crop.name}</h2>
         <p><strong>Type:</strong> {crop.type}</p>
         <p><strong>Price per Kg:</strong> ₹{crop.pricePerKg}</p>
@@ -183,15 +219,9 @@ const CropDetails = () => {
               <p><strong>Phone:</strong> {farmer.phone}</p>
               <p><strong>Role:</strong> {farmer.role}</p>
 
-              {/*✅  Chat button */}
-              {user && user.id !== farmer._id && (
+              {/* Chat and Order buttons for buyers only */}
+              {user && user.id !== farmer._id && user.role === 'buyer' && (
                 <div className="mt-6 p-4 bg-green-50 rounded-lg border border-green-200">
-                  <h4 className="text-lg font-semibold text-green-800 mb-2">
-                    Interested in this crop?
-                  </h4>
-                  <p className="text-gray-600 mb-4">
-                    Message the farmer to discuss pricing, quantity, delivery, or ask any questions about this crop.
-                  </p>
                   <button
                     onClick={() => navigate(`/chat/${farmer._id}?cropId=${crop._id}`)}
                     className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 font-semibold transition-colors"
@@ -206,28 +236,31 @@ const CropDetails = () => {
           )}
         </div>
 
-        <div className="mt-8 border-t pt-4">
-          <h3 className="text-lg font-semibold text-green-800 mb-2">Reviews</h3>
-          {loadingRatings ? (
-            <p className="text-gray-500">Loading reviews...</p>
-          ) : ratings.length === 0 ? (
-            <p className="text-gray-600">No reviews yet.</p>
-          ) : (
-            ratings.map((r, index) => (
-              <div key={index} className="mb-4 border-b pb-2">
-                <p><strong>Rating:</strong> {r.rating} / 5</p>
-                <p><strong>Comment:</strong> {r.comment}</p>
-                <p className="text-sm text-gray-500">
-                  Reviewer: {
-                    r.reviewerUsername ||
-                    (r.reviewer && typeof r.reviewer === 'object' ? r.reviewer.username : r.reviewer) ||
-                    'Anonymous'
-                  }
-                </p>
-              </div>
-            ))
-          )}
-        </div>
+        {/* Only show reviews if user is the crop owner (farmer) or a buyer */}
+        {((user && user.role === 'buyer') || (user && user.role === 'farmer' && crop?.seller?._id === user.id)) && (
+          <div className="mt-8 border-t pt-4">
+            <h3 className="text-lg font-semibold text-green-800 mb-2">Reviews</h3>
+            {loadingRatings ? (
+              <p className="text-gray-500">Loading reviews...</p>
+            ) : ratings.length === 0 ? (
+              <p className="text-gray-600">No reviews yet.</p>
+            ) : (
+              ratings.map((r, index) => (
+                <div key={index} className="mb-4 border-b pb-2">
+                  <p><strong>Rating:</strong> {r.rating} / 5</p>
+                  <p><strong>Comment:</strong> {r.comment}</p>
+                  <p className="text-sm text-gray-500">
+                    Reviewer: {
+                      r.reviewerUsername ||
+                      (r.reviewer && typeof r.reviewer === 'object' ? r.reviewer.username : r.reviewer) ||
+                      'Anonymous'
+                    }
+                  </p>
+                </div>
+              ))
+            )}
+          </div>
+        )}
 
         {farmer && (
           <div className="mt-8 border-t pt-4">
@@ -235,6 +268,8 @@ const CropDetails = () => {
 
             {!user ? (
               <p className="text-red-600">You must be logged in to leave a review.</p>
+            ) : user.role !== 'buyer' ? (
+              <p className="text-red-600">Only buyers can leave a review or comment on crops.</p>
             ) : (
               <form onSubmit={handleSubmitReview} className="space-y-4">
                 <div>

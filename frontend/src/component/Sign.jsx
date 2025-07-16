@@ -8,8 +8,7 @@ export default function Signup() {
     username: "",
     email: "",
     password: "",
-    phone: "",
-    role: "farmer",
+    phone: ""
   });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -20,7 +19,7 @@ export default function Signup() {
 
   const handleSignup = async (e) => {
     e.preventDefault();
-    if (!formData.email || !formData.username || !formData.password || !formData.role || !formData.phone) {
+    if (!formData.email || !formData.username || !formData.password || !formData.phone) {
       setError("Please fill in all required fields.");
       setSuccess("");
       return;
@@ -60,8 +59,7 @@ export default function Signup() {
         username: "",
         email: "",
         password: "",
-        phone: "",
-        role: "farmer",
+        phone: ""
       })
       setSuccess("Signup successful! Please login.");
       setError("");
@@ -152,29 +150,6 @@ export default function Signup() {
             </div>
 
             {/* Role selector */}
-            <div>
-              <label className="block text-gray-700 font-semibold mb-2">I am a</label>
-              <div className="flex space-x-4">
-                <div
-                  onClick={() => setFormData({ ...formData, role: "farmer" })}
-                  className={`cursor-pointer px-5 py-2 rounded-md border select-none ${formData.role === "farmer"
-                    ? "bg-green-500 text-white border-green-500"
-                    : "bg-white text-gray-700 border-gray-300 hover:border-green-400"
-                    }`}
-                >
-                  Farmer
-                </div>
-                <div
-                  onClick={() => setFormData({ ...formData, role: "buyer" })}
-                  className={`cursor-pointer px-5 py-2 rounded-md border select-none ${formData.role === "buyer"
-                    ? "bg-green-500 text-white border-green-500"
-                    : "bg-white text-gray-700 border-gray-300 hover:border-green-400"
-                    }`}
-                >
-                  Buyer
-                </div>
-              </div>
-            </div>
 
             {/* Error message */}
             {success && <div className="text-green-600 font-semibold mt-4 mb-2 px-3 py-2 border border-green-600 rounded bg-green-50">{success}</div>}

@@ -6,7 +6,9 @@ const app = express();
 // const localAuthMiddleware=passport.authenticate('local', { session: false });
 
 
-const { createOrder, getOrders, updateOrder } = require('../Controller/order');
+const { createOrder, getOrders, updateOrder, getOrdersForFarmer, clearAllOrders } = require('../Controller/order');
+const Notification = require('../model/Notification');
+const verifyToken = require('../middleware/verifyToken');
 
 const router = express.Router();
 
@@ -17,9 +19,12 @@ app.use(express.json());
 // localAuthMiddleware
 
 // Routes
-router.post('/result', createOrder);
+router.post('/result', verifyToken, createOrder);
+router.post('/create', verifyToken, createOrder);
 router.get('/getResult', getOrders);
 router.put('/update/:id', updateOrder);
+router.get('/farmer/:farmerId', getOrdersForFarmer);
+router.delete('/clearAll', clearAllOrders);
 
 // Export the router
 module.exports = router;

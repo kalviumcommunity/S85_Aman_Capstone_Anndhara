@@ -2,6 +2,7 @@ const mongoose  = require('mongoose');
 const Message = require('../model/Message');
 const User = require('../model/user');
 const { handleServerError } = require('../utils/errorHandler');
+const { isValidObjectId, validateUser, validateCrop, validateChatRoles } = require('../utils/messageValidation');
 // http://localhost:9001/Message/chat
 const createMessagePost = async (req, res) => {
   try {
@@ -124,115 +125,107 @@ const createMessagePut = async (req, res) => {
     }
 }
 
-// Role-based messaging system
+// Unified message creation logic
+async function createChatMessage({ senderId, receiverId, content, cropId }) {
+  // Validate sender and receiver
+  const senderResult = await validateUser(senderId);
+  if (!senderResult.valid) return { error: senderResult.error };
+  const receiverResult = await validateUser(receiverId);
+  if (!receiverResult.valid) return { error: receiverResult.error };
+  // Role-based validation
+  const roleCheck = validateChatRoles(senderResult.user, receiverResult.user);
+  if (!roleCheck.valid) return { error: roleCheck.error };
+  // Validate cropId
+  if (!cropId) return { error: 'cropId is required for crop-specific chat' };
+  const cropResult = await validateCrop(cropId);
+  if (!cropResult.valid) return { error: cropResult.error };
+  // Create and save message
+  const message = new Message({
+    sender: senderId,
+    receiver: receiverId,
+    content,
+    cropId,
+    read: false
+  });
+  await message.save();
+  return { message };
+}
+
+// Refactored sendMessage endpoint
 const sendMessage = async (req, res) => {
   try {
-    const sender = req.user.id; // Get sender from token
-    const senderRole = req.user.role;
+    const senderId = req.user.id;
     const { receiver, content, cropId } = req.body;
-
     if (!receiver || !content) {
       return res.status(400).json({ error: 'Receiver and content are required' });
     }
-
-    // Validate receiver ID
-    if (!mongoose.Types.ObjectId.isValid(receiver)) {
-      return res.status(400).json({ error: 'Invalid receiver ID' });
+    const result = await createChatMessage({ senderId, receiverId: receiver, content, cropId });
+    if (result.error) {
+      return res.status(400).json({ error: result.error });
     }
-
-    // Get receiver details to check role
-    const receiverUser = await User.findById(receiver);
-    if (!receiverUser) {
-      return res.status(404).json({ error: 'Receiver not found' });
-    }
-
-    // Role-based validation
-    if (senderRole === 'buyer' && receiverUser.role !== 'farmer') {
-      return res.status(403).json({ error: 'Buyers can only message farmers' });
-    }
-
-    if (senderRole === 'farmer' && receiverUser.role !== 'buyer') {
-      return res.status(403).json({ error: 'Farmers can only message buyers' });
-    }
-
-    if (senderRole === receiverUser.role) {
-      return res.status(403).json({ error: 'Cannot message users with the same role' });
-    }
-
-    // Prevent self-messaging
-    if (String(sender) === String(receiver)) {
-      return res.status(400).json({ error: 'Cannot message yourself' });
-    }
-
-    // Create message with crop context if provided
-    const messageData = {
-      sender: new mongoose.Types.ObjectId(sender),
-      receiver: new mongoose.Types.ObjectId(receiver),
-      content,
-      cropId: cropId ? new mongoose.Types.ObjectId(cropId) : null,
-      read: false // Always unread when sent
-    };
-
-    const message = new Message(messageData);
-    await message.save();
-
     res.status(201).json({
       success: true,
       message: 'Message sent successfully',
-      data: message
+      data: result.message
     });
   } catch (err) {
     return handleServerError(res, err, 'Failed to send message');
   }
 };
 
-// Get messages between two users (role-based)
+// Refactored getMessages endpoint
 const getMessages = async (req, res) => {
   try {
     const { userId, otherUserId } = req.params;
     const currentUser = req.user;
-
     // Validate user IDs
-    if (!mongoose.Types.ObjectId.isValid(userId) || !mongoose.Types.ObjectId.isValid(otherUserId)) {
+    if (!isValidObjectId(userId) || !isValidObjectId(otherUserId)) {
       return res.status(400).json({ error: 'Invalid user ID' });
     }
-
     // Ensure current user is one of the participants
     if (String(currentUser._id) !== String(userId)) {
       return res.status(403).json({ error: 'Unauthorized access to messages' });
     }
-
     // Get other user details
-    const otherUser = await User.findById(otherUserId);
-    if (!otherUser) {
-      return res.status(404).json({ error: 'Other user not found' });
+    const otherUserResult = await validateUser(otherUserId);
+    if (!otherUserResult.valid) {
+      return res.status(404).json({ error: otherUserResult.error });
     }
-
     // Role-based validation
-    if (currentUser.role === otherUser.role) {
-      return res.status(403).json({ error: 'Cannot access messages with same role users' });
+    const roleCheck = validateChatRoles(currentUser, otherUserResult.user);
+    if (!roleCheck.valid) {
+      return res.status(403).json({ error: roleCheck.error });
     }
-
-    // Fetch messages in both directions
-    const messages = await Message.find({
+    // Strictly require cropId for crop-based chats
+    const cropId = req.query.cropId;
+    if (!cropId) {
+      return res.status(400).json({ error: 'cropId is required for crop-specific chat' });
+    }
+    // Validate cropId
+    const cropResult = await validateCrop(cropId);
+    if (!cropResult.valid) {
+      return res.status(404).json({ error: cropResult.error });
+    }
+    const filter = {
       $or: [
         { sender: userId, receiver: otherUserId },
         { sender: otherUserId, receiver: userId }
-      ]
-    })
-    .populate('sender', 'username email role')
-    .populate('receiver', 'username email role')
-    .populate('cropId', 'name type pricePerKg')
-    .sort({ createdAt: 1 });
-
+      ],
+      cropId: cropId
+    };
+    const messages = await Message.find(filter)
+      .populate('sender', 'username email role')
+      .populate('receiver', 'username email role')
+      .populate('cropId', 'name type pricePerKg')
+      .sort({ createdAt: 1 });
     res.json({
       success: true,
       messages: messages,
       otherUser: {
-        _id: otherUser._id,
-        username: otherUser.username,
-        email: otherUser.email,
-        role: otherUser.role
+        _id: otherUserResult.user._id,
+        username: otherUserResult.user.username,
+        email: otherUserResult.user.email,
+        role: otherUserResult.user.role
       }
     });
   } catch (err) {
@@ -390,7 +383,7 @@ const createTestData = async (req, res) => {
     }
     
     // Get a crop to link messages to
-    const Crop = require('../model/Crop');
+    const Crop = require('../model/crop');
     const crops = await Crop.find({ seller: farmer._id }).limit(1);
     const crop = crops.length > 0 ? crops[0] : null;
     
@@ -497,6 +490,32 @@ const getUnreadCountsForFarmer = async (req, res) => {
   }
 };
 
+// Delete all messages for a given orderId, cartItemId, or cropId between two users
+const clearChatMessages = async (req, res) => {
+  try {
+    const { userId, otherUserId, orderId, cartItemId, cropId } = req.body;
+    if (!userId || !otherUserId) {
+      return res.status(400).json({ error: 'userId and otherUserId are required' });
+    }
+    if (!orderId && !cartItemId && !cropId) {
+      return res.status(400).json({ error: 'At least one of orderId, cartItemId, or cropId is required' });
+    }
+    const filter = {
+      $or: [
+        { sender: userId, receiver: otherUserId },
+        { sender: otherUserId, receiver: userId }
+      ]
+    };
+    if (orderId) filter.orderId = orderId;
+    else if (cartItemId) filter.cartItemId = cartItemId;
+    else if (cropId) filter.cropId = cropId;
+    const result = await Message.deleteMany(filter);
+    res.json({ success: true, deletedCount: result.deletedCount });
+  } catch (err) {
+    return handleServerError(res, err, 'Failed to clear messages');
+  }
+};
+
 module.exports = {
     createMessagePost,
     createMessageGet,
@@ -508,5 +527,6 @@ module.exports = {
     createTestData,
     minimalTest,
     markMessagesAsRead,
-    getUnreadCountsForFarmer
+    getUnreadCountsForFarmer,
+    clearChatMessages
 }

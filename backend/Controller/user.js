@@ -7,7 +7,7 @@ const { handleServerError } = require('../utils/errorHandler');
 const userCreatePost = async (req, res) => {
     try {
         const { username, email, password, photo, role, phone } = req.body;
-        if (!username || !email || !password || !role || !phone) {
+        if (!username || !email || !password || !phone) {
             return res.status(400).json({
                 message: 'All fields are required!',
                 missingFields: {
@@ -15,12 +15,11 @@ const userCreatePost = async (req, res) => {
                     email: !email ? 'Email is required' : undefined,
                     password: !password ? 'Password is required' : undefined,
                     phone: !phone ? 'Phone is required' : undefined,
-                    role: !role ? 'Role is required' : undefined,
                 },
             });
         }
         const newUser = new User({
-            username, email, password, photo, role, phone
+            username, email, password, photo, role: role || '', phone
         });
 
         await newUser.save();

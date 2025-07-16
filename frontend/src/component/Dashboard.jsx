@@ -6,9 +6,13 @@ import {
   FaCarrot,
   FaAppleAlt,
   FaLeaf,
-  FaUserCircle
+  FaUserCircle,
+  FaHeart,
+  FaRegHeart
 } from 'react-icons/fa';
 import { GiPeanut } from 'react-icons/gi';
+import { useCart } from '../store/cartStore';
+import { FaShoppingCart } from 'react-icons/fa';
 
 const categories = [
   "Crops",
@@ -27,37 +31,79 @@ const categoryIcons = [
 ];
 
 const getImageUrl = (imageUrl) => {
-  if (!imageUrl) return 'https://via.placeholder.com/300x200?text=No+Image';
+  if (!imageUrl) return null;
   return imageUrl.startsWith('http')
     ? imageUrl
     : `http://localhost:9001${imageUrl}`;
 };
 
-const ProductCard = ({ id, imgSrc, title, description, onViewDetails }) => (
-  <div className='bg-white border rounded-lg shadow hover:shadow-2xl p-4 transform transition-transform duration-200 hover:scale-105'>
-    <img
-      src={imgSrc}
-      alt={title}
-      className='rounded mb-3 w-full h-40 object-cover border'
-    />
-    <h4 className='font-bold text-green-700 text-lg mb-1'>{title}</h4>
-    <p className='text-sm text-gray-600'>{description}</p>
-    <button
-      aria-label={`View details for ${title}`}
-      className='mt-3 bg-gray-700 text-white w-full py-1.5 rounded hover:bg-green-600 transition-all duration-200'
-      onClick={() => onViewDetails(id)}
-    >
-      View Details
-    </button>
-  </div>
-);
+const ProductCard = ({ id, imgSrc, title, description, onViewDetails, onOrder, onAddToCart, showAddToCart, showOrder, sellerId, isFavorite, onToggleFavorite }) => {
+  const navigate = useNavigate();
+  return (
+    <div className='bg-white border rounded-lg shadow hover:shadow-2xl p-4 transform transition-transform duration-200 hover:scale-105'>
+      <div className='flex justify-between items-start'>
+        {imgSrc && (
+          <img
+            src={imgSrc}
+            alt={title}
+            className='rounded mb-3 w-full h-40 object-cover border'
+          />
+        )}
+        {typeof isFavorite !== 'undefined' && (
+          <button
+            aria-label={isFavorite ? 'Unfavorite' : 'Favorite'}
+            className='ml-2 text-red-500 text-xl focus:outline-none hover:scale-110 transition-transform'
+            onClick={onToggleFavorite}
+          >
+            {isFavorite ? <FaHeart /> : <FaRegHeart />}
+          </button>
+        )}
+      </div>
+      <h4 className='font-bold text-green-700 text-lg mb-1'>{title}</h4>
+      <p className='text-sm text-gray-600'>{description}</p>
+      <button
+        aria-label={`View details for ${title}`}
+        className='mt-3 bg-gray-700 text-white w-full py-1.5 rounded hover:bg-green-600 transition-all duration-200'
+        onClick={() => onViewDetails(id)}
+      >
+        View Details
+      </button>
+      {/* Message button for buyers only, not the seller */}
+      {(() => {
+        const user = JSON.parse(localStorage.getItem('user'));
+        return user && user.role === 'buyer' && user.id !== sellerId ? (
+          <button
+            className='mt-2 bg-green-600 text-white w-full py-1.5 rounded hover:bg-green-700 transition-all duration-200'
+            onClick={() => navigate(`/chat/${sellerId}?cropId=${id}`)}
+          >
+            💬 Message
+          </button>
+        ) : null;
+      })()}
+      <div className='flex gap-2 mt-2'>
+        {showAddToCart && (
+          <>
+            <button
+              className='flex-1 bg-orange-500 text-white py-1.5 rounded hover:bg-orange-600 transition-all duration-200'
+              onClick={() => onAddToCart(id)}
+            >
+              Add to Cart
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
 
 const DashBoard = () => {
   const navigate = useNavigate();
   const [crops, setCrops] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('Crops');
+  const { cart, addToCart } = useCart();
   const user = JSON.parse(localStorage.getItem('user'));
+  const [favorites, setFavorites] = useState([]);
 
   useEffect(() => {
     fetch('http://localhost:9001/crop/AllCrop')
@@ -70,14 +116,86 @@ const DashBoard = () => {
         console.error("Error fetching crops:", err);
         setLoading(false);
       });
-  }, []);
+
+    // Fetch favorites for buyers
+    if (user && user.role === 'buyer') {
+      fetch('http://localhost:9001/favorite/my', {
+        headers: { Authorization: `Bearer ${user.token}` }
+      })
+        .then(res => res.json())
+        .then(data => setFavorites(data.favorites?.map(f => f.cropId?._id) || []))
+        .catch(() => setFavorites([]));
+    }
+  }, [user]);
 
   const filteredCrops = selectedCategory === 'Crops'
-    ? crops
-    : crops.filter(crop => crop.type.toLowerCase() === selectedCategory.toLowerCase());
+    ? crops.filter(crop => crop.available !== false && crop.quantityKg > 0)
+    : crops.filter(crop => crop.type.toLowerCase() === selectedCategory.toLowerCase() && crop.available !== false && crop.quantityKg > 0);
 
   const handleViewDetails = (cropId) => {
     navigate(`/crop-details/${cropId}`);
+  };
+
+  const handleOrder = async (cropId) => {
+    if (!user || user.role !== 'buyer') {
+      alert('You must be logged in as a buyer to place an order.');
+      return;
+    }
+    const crop = crops.find(c => c._id === cropId);
+    if (!crop) {
+      alert('Crop not found.');
+      return;
+    }
+    const quantity = 1; // You can prompt for this
+    const address = prompt('Enter delivery address:');
+    if (!address) return;
+    const orderBody = {
+      crop: crop._id,
+      quantityOrdered: quantity,
+      proposedPrice: crop.pricePerKg,
+      address
+    };
+    const res = await fetch('http://localhost:9001/order/create', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${user.token}`
+      },
+      body: JSON.stringify(orderBody)
+    });
+    const data = await res.json();
+    if (data.success) {
+      alert('Order placed successfully!');
+    } else {
+      alert(data.error || 'Failed to place order.');
+    }
+  };
+
+  const handleAddToCart = (cropId) => {
+    const crop = crops.find(c => c._id === cropId);
+    if (!cart.find(item => item._id === cropId)) {
+      addToCart(crop);
+      alert('Added to cart!');
+    } else {
+      alert('Already in cart!');
+    }
+  };
+
+  const toggleFavorite = async (cropId, isFav) => {
+    if (!user || user.role !== 'buyer') return;
+    const url = `http://localhost:9001/favorite/${isFav ? 'remove' : 'add'}`;
+    const method = isFav ? 'DELETE' : 'POST';
+    const res = await fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${user.token}`
+      },
+      body: JSON.stringify({ cropId })
+    });
+    if (res.ok) {
+      setFavorites(favs => isFav ? favs.filter(id => id !== cropId) : [...favs, cropId]);
+    }
   };
 
   return (
@@ -94,7 +212,7 @@ const DashBoard = () => {
         </form>
         <ul className='hidden lg:flex space-x-6 text-sm font-semibold text-orange-600'>
           {categories.map((item, i) => (
-            <li key={i}>
+            <li key={item}>
               <button
                 onClick={() => setSelectedCategory(item)}
                 className={`flex items-center gap-1 hover:text-green-700 ${selectedCategory === item ? 'text-green-700 font-bold' : ''}`}
@@ -106,6 +224,12 @@ const DashBoard = () => {
           ))}
         </ul>
         <div className='flex space-x-2 items-center'>
+          <Link to="/cart" className='relative flex items-center px-3 py-1 rounded-full hover:bg-green-100 transition-all'>
+            <FaShoppingCart className='text-2xl text-green-700' />
+            {cart.length > 0 && (
+              <span className='absolute top-0 right-0 bg-red-500 text-white text-xs rounded-full px-1'>{cart.length}</span>
+            )}
+          </Link>
           {user && (
             <Link to="/profile" className='flex items-center gap-2 px-3 py-1 rounded-full hover:bg-green-100 transition-all'>
               <FaUserCircle className='text-2xl text-green-700' />
@@ -118,6 +242,14 @@ const DashBoard = () => {
               className='bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-semibold transition-all'
             >
               💬 Messages
+            </Link>
+          )}
+          {user && user.role === 'farmer' && (
+            <Link
+              to="/farmer-orders"
+              className='bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 font-semibold transition-all'
+            >
+              📦 My Orders
             </Link>
           )}
           <Link to="/crop-upload" className='bg-green-500 text-white px-4 py-1 rounded hover:bg-green-600 font-semibold transition-all'><b>Seller</b></Link>
@@ -160,7 +292,14 @@ const DashBoard = () => {
                 imgSrc={getImageUrl(crop.imageUrl)}
                 title={crop.name}
                 description={`Type: ${crop.type} | ₹${crop.pricePerKg}/kg | ${crop.quantityKg} Kg | ${crop.location}`}
-                  onViewDetails={handleViewDetails}
+                onViewDetails={handleViewDetails}
+                onOrder={handleOrder}
+                onAddToCart={handleAddToCart}
+                showAddToCart={user && user.role === 'buyer'}
+                showOrder={user && user.role === 'buyer'}
+                sellerId={crop.seller?._id}
+                isFavorite={favorites.includes(crop._id)}
+                onToggleFavorite={() => toggleFavorite(crop._id, favorites.includes(crop._id))}
               />
             ))}
           </div>
