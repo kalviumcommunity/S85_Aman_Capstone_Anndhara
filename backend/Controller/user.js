@@ -41,7 +41,7 @@ const userCreatePost = async (req, res) => {
         return handleServerError(res, error, 'Server error during creating the user.');
     }
 }
-// login 
+// login  
 const userLoginPost = async (req, res) => {
     try {
         const { email, password } = req.body;
