@@ -50,7 +50,16 @@ const CropUpload = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    // Only allow numbers and one decimal for pricePerKg and quantityKg
+    if (name === 'pricePerKg' || name === 'quantityKg') {
+      // Allow only digits and at most one decimal point
+      const regex = /^\d*\.?\d*$/;
+      if (value === '' || regex.test(value)) {
+        setFormData((prev) => ({ ...prev, [name]: value }));
+      }
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleFileChange = (e) => {
@@ -78,7 +87,7 @@ const CropUpload = () => {
     if (image) data.append('image', image);
 
     try {
-      const res = await axios.post('http://localhost:9001/crop/crop', data, {
+      const res = await axios.post('https://anndhara.onrender.com/crop/crop', data, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -155,9 +164,45 @@ const CropUpload = () => {
 
             </select>
           </div>
-          <Field icon={<Package size={18} />} type="number" name="pricePerKg" value={formData.pricePerKg} onChange={handleChange} placeholder="Price per Kg" />
-          <Field icon={<Package size={18} />} type="number" name="quantityKg" value={formData.quantityKg} onChange={handleChange} placeholder="Quantity (Kg)" />
+          <Field icon={<Package size={18} />} type="number" name="pricePerKg" value={formData.pricePerKg} onChange={handleChange} placeholder="Price per Kg" min="0" step="any" />
+          <Field icon={<Package size={18} />} type="number" name="quantityKg" value={formData.quantityKg} onChange={handleChange} placeholder="Quantity (Kg)" min="0" step="any" />
           <Field icon={<MapPin size={18} />} name="location" value={formData.location} onChange={handleChange} placeholder="Location" />
+<div className="flex items-center gap-2 mb-2">
+  <button
+    type="button"
+    className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded"
+    onClick={async () => {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          async (position) => {
+            const { latitude, longitude } = position.coords;
+            try {
+              const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`);
+              const data = await response.json();
+              const address = data.display_name || `${latitude}, ${longitude}`;
+              setFormData((prev) => ({
+                ...prev,
+                location: address
+              }));
+            } catch (err) {
+              setFormData((prev) => ({
+                ...prev,
+                location: `${latitude}, ${longitude}`
+              }));
+            }
+          },
+          (error) => {
+            alert('Unable to retrieve your location.');
+          }
+        );
+      } else {
+        alert('Geolocation is not supported by your browser.');
+      }
+    }}
+  >
+    Use My Location
+  </button>
+</div>
 
           <div className="flex items-center gap-2">
             <Image size={18} className="text-gray-500" />

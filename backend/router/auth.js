@@ -17,13 +17,14 @@ router.get('/google/callback',
         const payload = {
             id: req.user._id,
             email: req.user.email,
-            role: req.user.role,
+            role: req.user.role || '', // Handle empty role
         };
 
         const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1d' });
 
-        // Redirect frontend with token in query params (or cookie, your choice)
-        res.redirect(`${process.env.FRONTEND_URL}/oauth-success?token=${token}`);
+        // Redirect frontend with token in query params
+        const frontendUrl = process.env.FRONTEND_URL || 'https://anndhara.onrender.com';
+        res.redirect(`${frontendUrl}/oauth-success?token=${token}`);
     }
 );
 

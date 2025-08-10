@@ -42,8 +42,8 @@ export default function Signup() {
       return;
     }
     try {
-      const resp = await axios.post('http://localhost:9001/user/register', formData);
-      const { user, token } = resp.data;
+      const resp = await axios.post('https://anndhara.onrender.com/user/register', formData);
+      const { data: user, token } = resp.data;
 
       localStorage.setItem('user', JSON.stringify({ 
         token, 
@@ -51,7 +51,7 @@ export default function Signup() {
         _id: user._id, // Always include _id for MongoDB compatibility
         username: user.username,
         email: user.email,
-        role: user.role,
+        role: user.role || '', // Role will be empty initially
         phone: user.phone
       }));
 

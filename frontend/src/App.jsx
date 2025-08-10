@@ -10,6 +10,7 @@ import OAuthSuccess from './component/OAuthSuccess';
 import Cart from './component/Cart';
 import Profile from './component/profile';
 import ProtectedRoute from './component/ProtectedRoute';
+import RoleProtectedRoute from './component/common/RoleProtectedRoute';
 import Checkout from './component/Checkout';
 import FarmerOrders from './component/FarmerOrders';
 import './index.css';
@@ -22,6 +23,8 @@ import NotificationPage from './component/NotificationPage';
 
 function App() {
   const [notifications, setNotifications] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState('Crops');
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('user'));
@@ -32,7 +35,7 @@ function App() {
         setNotifications((prev) => [notif, ...prev]);
       });
       // Fetch notifications from backend
-      fetch('http://localhost:9001/notification', {
+      fetch('https://anndhara.onrender.com/notification', {
         headers: { Authorization: `Bearer ${user.token}` }
       })
         .then(res => res.json())
@@ -46,24 +49,67 @@ function App() {
 
   return (
     <>
-      <Navbar notifications={notifications} setNotifications={setNotifications} />
+      <Navbar 
+        notifications={notifications} 
+        setNotifications={setNotifications}
+        selectedCategory={selectedCategory}
+        setSelectedCategory={setSelectedCategory}
+        searchTerm={searchTerm}
+        setSearchTerm={setSearchTerm}
+      />
       <Routes>
-        <Route path='/' element={<DashBoard />} />
+        <Route path='/' element={<DashBoard selectedCategory={selectedCategory} searchTerm={searchTerm} />} />
         <Route path='/crop-details/:id' element={<CropDetail />} />
-        <Route path='/crop-upload' element={<CropUpload />} />
+        <Route path='/crop-upload' element={
+          <RoleProtectedRoute>
+            <CropUpload />
+          </RoleProtectedRoute>
+        } />
         <Route path='/login' element={<Login />} />
         <Route path='/register' element={<Sign />} />
-        <Route path='/farmer-messages' element={<FarmerMessages />} />
+        <Route path='/farmer-messages' element={
+          <RoleProtectedRoute>
+            <FarmerMessages />
+          </RoleProtectedRoute>
+        } />
         <Route path='/oauth-success' element={<OAuthSuccess />} />
         <Route path='/profile' element={<Profile />} />
-        <Route path='/cart' element={<Cart />} />
-        <Route path='/checkout' element={<Checkout />} />
+        <Route path='/cart' element={
+          <RoleProtectedRoute>
+            <Cart />
+          </RoleProtectedRoute>
+        } />
+        <Route path='/checkout' element={
+          <RoleProtectedRoute>
+            <Checkout />
+          </RoleProtectedRoute>
+        } />
         <Route path='/protected' element={<ProtectedRoute />} />
-        <Route path='/farmer-orders' element={<FarmerOrders />} />
-        <Route path='/buyer-orders' element={<BuyerOrders />} />
-        <Route path='/chat/:otherUserId' element={<ChatPage />} />
-        <Route path='/favorites' element={<FavoritesPage />} />
-        <Route path='/notifications' element={<NotificationPage setNotifications={setNotifications} />} />
+        <Route path='/farmer-orders' element={
+          <RoleProtectedRoute>
+            <FarmerOrders />
+          </RoleProtectedRoute>
+        } />
+        <Route path='/buyer-orders' element={
+          <RoleProtectedRoute>
+            <BuyerOrders />
+          </RoleProtectedRoute>
+        } />
+        <Route path='/chat/:otherUserId' element={
+          <RoleProtectedRoute>
+            <ChatPage />
+          </RoleProtectedRoute>
+        } />
+        <Route path='/favorites' element={
+          <RoleProtectedRoute>
+            <FavoritesPage />
+          </RoleProtectedRoute>
+        } />
+        <Route path='/notifications' element={
+          <RoleProtectedRoute>
+            <NotificationPage setNotifications={setNotifications} />
+          </RoleProtectedRoute>
+        } />
       </Routes>
     </>
   );

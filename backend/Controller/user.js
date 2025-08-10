@@ -3,40 +3,67 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken')
 require('dotenv').config();
 const { handleServerError } = require('../utils/errorHandler');
+const { 
+  sendSuccessResponse, 
+  sendErrorResponse, 
+  sendValidationError, 
+  sendNotFoundResponse,
+  handleUpdateOperation,
+  handleCreateOperation,
+  handleGetOperation
+} = require('../utils/responseHandler');
+const { 
+  validateRequiredFields, 
+  validateEmail, 
+  validateObjectId,
+  buildUpdateData,
+  validateUpdateFields
+} = require('../utils/validationHelper');
 // http://localhost:9001/user/register
 const userCreatePost = async (req, res) => {
     try {
         const { username, email, password, photo, role, phone } = req.body;
-        if (!username || !email || !password || !phone) {
-            return res.status(400).json({
-                message: 'All fields are required!',
-                missingFields: {
-                    username: !username ? 'User is required' : undefined,
-                    email: !email ? 'Email is required' : undefined,
-                    password: !password ? 'Password is required' : undefined,
-                    phone: !phone ? 'Phone is required' : undefined,
-                },
+        
+        // Validate required fields
+        const validation = validateRequiredFields(req.body, ['username', 'email', 'password', 'phone']);
+        if (!validation.isValid) {
+            return sendValidationError(res, validation.missingFields);
+        }
+
+        // Validate email format
+        if (!validateEmail(email)) {
+            return sendErrorResponse(res, 'Invalid email format', 400);
+        }
+
+        const userData = {
+            username, 
+            email, 
+            password, 
+            photo, 
+            role: '', // Remove role from signup - will be set in profile
+            phone
+        };
+
+        const result = await handleCreateOperation(res, User, userData, 'User created successfully!');
+        
+        if (result) {
+            const payload = {
+                id: result.data._id,
+                email: result.data.email,
+                role: result.data.role,
+            };
+            const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1d' });
+            return res.status(201).json({ 
+                message: 'User is created successfully!', 
+                success: true, 
+                data: result.data, 
+                token 
             });
         }
-        const newUser = new User({
-            username, email, password, photo, role: role || '', phone
-        });
-
-        await newUser.save();
-        const payload = {
-            id: newUser._id,
-            email: newUser.email,
-            role: newUser.role,
-        };
-        const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1d' });
-        return res.status(201).json({ message: 'User is created successfully!', success: true, data: newUser, token });
     }
     catch (error) {
         if (error.code === 11000) {
-            return res.status(400).json({
-                success: false,
-                message: "Email Already  is Use. Please Try loggin in or use a different email."
-            })
+            return sendErrorResponse(res, "Email is already in use. Please try logging in or use a different email.", 400);
         }
         return handleServerError(res, error, 'Server error during creating the user.');
     }
@@ -45,17 +72,23 @@ const userCreatePost = async (req, res) => {
 const userLoginPost = async (req, res) => {
     try {
         const { email, password } = req.body;
-        if (!email || !password) {
-            return res.status(400).json({ success: false, message: 'All Field required' })
+        
+        // Validate required fields
+        const validation = validateRequiredFields(req.body, ['email', 'password']);
+        if (!validation.isValid) {
+            return sendErrorResponse(res, 'Email and password are required', 400);
         }
+
         const emailExist = await User.findOne({ email });
         if (!emailExist) {
-            return res.status(401).json({ message: 'Invalid Credentials' })
+            return sendErrorResponse(res, 'Invalid Credentials', 401);
         }
+        
         const isMatch = await bcrypt.compare(password, emailExist.password);
         if (!isMatch) {
-            return res.status(401).json({ message: 'Invalid Credentials', success: false })
+            return sendErrorResponse(res, 'Invalid Credentials', 401);
         }
+        
         const payload = {
             id: emailExist._id,
             email: emailExist.email,
@@ -67,93 +100,63 @@ const userLoginPost = async (req, res) => {
             { expiresIn: '1d' }
         )
 
-
-        return res.status(200).json({ message: 'Login Successfull!', success: true, data: emailExist, token })
+        return res.status(200).json({ 
+            message: 'Login Successful!', 
+            success: true, 
+            data: emailExist, 
+            token 
+        });
     } catch (error) {
         return handleServerError(res, error, 'Server error during login');
     }
-
 }
 
 // http://localhost:9001/user
 const userCreateGet = async (req, res) => {
     try {
-        // const { username, password } = req.query;
-        // if (username && password) {
-        //     const user1 = await User.findOne({ username, password });
-        //     if (!user1) {
-        //         return res.status(404).json({
-        //             message: 'User not found with the provided credentials',
-        //             success: false,
-        //             data: null,
-        //         })
-        //     }
-        //     return res.status(200).json({ message: 'User is found', success: true, data: user1 });
-        // }
         const { id } = req.params;
+        
         if (id) {
+            if (!validateObjectId(id)) {
+                return sendErrorResponse(res, 'Invalid user ID format', 400);
+            }
+            
             const user = await User.findById(id);
             if (!user) {
-                return res.status(404).json({
-                    message: 'User not found with the provided ID',
-                    success: false,
-                    data: null,
-                });
+                return sendNotFoundResponse(res, 'User');
             }
-            return res.status(200).json({
-                message: 'User fetched successfully!',
-                success: true,
-                data: user,
-            });
+            return sendSuccessResponse(res, user, 'User fetched successfully!');
         }
-        const user = await User.find({});
+        
+        const users = await User.find({});
         return res.status(200).json({
-            message: 'User fetched sucessfully! ',
+            message: 'Users fetched successfully!',
             success: true,
-            farmer:user,
-            data: user,
+            farmer: users,
+            data: users,
         });
     } catch (error) {
         return handleServerError(res, error, 'Server error occurred while fetching Users.');
     }
-
 }
 //http://localhost:9001/user/update/680b7ef2d2de61db25949891
 const userCreatePut = async (req, res) => {
-    const { user, email, password, photo, role, phone } = req.body;
     try {
         const { id } = req.params;
-        if (!user && !email && !password && !photo && !role && !phone) {
-            return res.status(400).json({
-                message: 'At least one field is required to updates',
-                success: false,
-            });
+        const { user, email, password, photo, role, phone } = req.body;
+        
+        if (!validateObjectId(id)) {
+            return sendErrorResponse(res, 'Invalid user ID format', 400);
         }
-        const updateData = {};
-        if (user) updateData.user = user;
-        if (email) updateData.email = email;
-        if (password) updateData.password = password;
-        if (photo) updateData.photo = photo;
-        if (role) updateData.role = role;
-        if (phone) updateData.phone = phone;
-
-
-        const updatedUser = await User.findByIdAndUpdate(id, updateData, { new: true, runValidators: true, select: '-password' });
-
-        if (!updatedUser) {
-            return res.status(404).json({
-                message: 'User is not found!',
-                success: false,
-
-
-            });
+        
+        const allowedFields = ['user', 'email', 'password', 'photo', 'role', 'phone'];
+        const updateData = buildUpdateData(req.body, allowedFields);
+        
+        if (!validateUpdateFields(updateData)) {
+            return sendErrorResponse(res, 'At least one field is required to update', 400);
         }
 
-        return res.status(200).json({
-            message: 'User Update Sucessfully!',
-            success: true,
-            data: updatedUser,
-        })
+        return await handleUpdateOperation(res, User, id, updateData, { select: '-password' });
     } catch (error) {
         return handleServerError(res, error, 'Server error occurred while updating user.');
     }

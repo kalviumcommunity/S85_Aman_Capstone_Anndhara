@@ -27,7 +27,7 @@ const ChatPage = () => {
     setUser({ ...rawUser, _id: rawUser._id || rawUser.id });
 
     // Fetch other user info
-    fetch(`http://localhost:9001/user?id=${otherUserId}`)
+          fetch(`https://anndhara.onrender.com/user?id=${otherUserId}`)
       .then(res => res.json())
       .then(data => {
         // Try both data.data and data.farmer for compatibility

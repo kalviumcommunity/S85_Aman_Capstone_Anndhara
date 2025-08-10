@@ -67,7 +67,7 @@ const Checkout = () => {
           status: 'pending',
         };
         console.log('Order request body:', orderBody); // Debug log
-        const res = await fetch('http://localhost:9001/order/result', {
+        const res = await fetch('https://anndhara.onrender.com/order/result', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

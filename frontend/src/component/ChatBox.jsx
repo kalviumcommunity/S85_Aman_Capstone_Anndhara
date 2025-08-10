@@ -66,7 +66,7 @@ const ChatBox = ({ user, otherUser, orderId, cartItemId, cropId: propCropId }) =
           return;
         }
         if (!cropId) return; // Guard: don't fetch if cropId is missing
-        let url = `http://localhost:9001/message/${safeUser._id}/${safeOtherUser._id}`;
+        let url = `https://anndhara.onrender.com/message/${safeUser._id}/${safeOtherUser._id}`;
         url += `?cropId=${cropId}`;
         const res = await axios.get(url);
         setMessages(res.data.messages || []);
@@ -144,7 +144,7 @@ const ChatBox = ({ user, otherUser, orderId, cartItemId, cropId: propCropId }) =
       if (orderId) body.orderId = orderId;
       else if (cartItemId) body.cartItemId = cartItemId;
       else if (cropContext && cropContext.cropId) body.cropId = cropContext.cropId;
-      const res = await fetch('http://localhost:9001/message/clear', {
+              const res = await fetch('https://anndhara.onrender.com/message/clear', {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',

@@ -5,7 +5,7 @@ import { Link, useNavigate } from "react-router-dom";
 export default function Login() {
   const navigate = useNavigate();
   const handleGoogleLogin = () => { 
-    window.location.href = 'http://localhost:9001/auth/google';
+    window.location.href = 'https://anndhara.onrender.com/auth/google';
   };
   const [formData, setFormData] = useState({
     email: "",
@@ -37,7 +37,7 @@ export default function Login() {
     try {
 
 
-      const resp = await axios.post("http://localhost:9001/user/login", formData);
+      const resp = await axios.post("https://anndhara.onrender.com/user/login", formData);
 
       if (import.meta.env.MODE === 'development') console.log(resp);
 
@@ -50,13 +50,19 @@ export default function Login() {
         _id: data._id, // Always include _id for MongoDB compatibility
         username: data.username,
         email: data.email,
-        role: data.role,
+        role: data.role || '', // Handle empty role
+        phone: data.phone || ''
       }));
 
       setSuccess("Login successful!");
       setError("");
       setTimeout(() => {
-        navigate('/');
+        // Redirect to profile if user has no role, otherwise to home
+        if (!data.role || data.role === '') {
+          navigate('/profile');
+        } else {
+          navigate('/');
+        }
       }, 1500);  // 1.5 seconds delay to see message
 
 

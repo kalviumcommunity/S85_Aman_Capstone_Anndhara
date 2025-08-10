@@ -1,39 +1,48 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { orderAPI, getCurrentUser, isFarmer } from '../utils/apiHelper';
+import OrderTable from './common/OrderTable';
 
 const FarmerOrders = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const user = JSON.parse(localStorage.getItem('user'));
+  const user = getCurrentUser();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!user || user.role !== 'farmer') {
+    if (!user || !isFarmer()) {
       navigate('/login');
       return;
     }
-    fetch(`http://localhost:9001/order/farmer/${user._id || user.id}`)
-      .then(res => res.json())
-      .then(data => {
+    
+    const fetchOrders = async () => {
+      try {
+        const data = await orderAPI.getFarmerOrders(user._id || user.id);
         setOrders(data.orders || []);
-        setLoading(false);
-      })
-      .catch(err => {
+      } catch (err) {
         setError('Failed to fetch orders');
+      } finally {
         setLoading(false);
-      });
+      }
+    };
+    
+    fetchOrders();
   }, [user, navigate]);
 
-  const handleStatusChange = async (orderId, status) => {
+  const handleStatusChange = async (orderId, status, reason = null) => {
     try {
-      const res = await fetch(`http://localhost:9001/order/update/${orderId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status })
-      });
-      if (!res.ok) throw new Error('Failed to update order');
+      const updateData = { status };
+      if (reason) updateData.reason = reason;
+      
+      const data = await orderAPI.updateOrder(orderId, updateData);
+      if (data.success) {
+        if (status === 'rejected') {
+          setOrders(orders => orders.filter(o => o._id !== orderId));
+        } else {
       setOrders(orders => orders.map(o => o._id === orderId ? { ...o, status } : o));
+        }
+      }
     } catch {
       alert('Failed to update order status');
     }
@@ -43,12 +52,7 @@ const FarmerOrders = () => {
   const handleRemoveOrder = async (orderId) => {
     if (!window.confirm('Are you sure you want to remove this order?')) return;
     try {
-      const res = await fetch(`http://localhost:9001/order/update/${orderId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'cancelled' })
-      });
-      const data = await res.json();
+      const data = await orderAPI.updateOrder(orderId, { status: 'cancelled' });
       if (data.success) {
         setOrders(orders => orders.filter(o => o._id !== orderId));
       } else {
@@ -56,6 +60,22 @@ const FarmerOrders = () => {
       }
     } catch {
       alert('Failed to remove order.');
+    }
+  };
+
+  const handleMessageClick = (buyerId, orderId, cropId) => {
+    navigate(`/chat/${buyerId}?orderId=${orderId}&cropId=${cropId}`);
+  };
+
+  const handleDeleteAllOrders = async () => {
+    if (!window.confirm('Are you sure you want to delete all your orders? This will cancel each order.')) return;
+    try {
+      for (const order of orders) {
+        await orderAPI.updateOrder(order._id, { status: 'cancelled' });
+      }
+      setOrders([]);
+    } catch {
+      alert('Failed to delete all your orders.');
     }
   };
 
@@ -68,104 +88,14 @@ const FarmerOrders = () => {
       {orders.length === 0 ? (
         <p className='text-gray-500'>No orders yet.</p>
       ) : (
-        <>
-          <table className='w-full border text-sm'>
-            <thead>
-              <tr className='bg-green-100'>
-                <th className='p-2 border'>Buyer</th>
-                <th className='p-2 border'>Crop</th>
-                <th className='p-2 border'>Quantity</th>
-                <th className='p-2 border'>Proposed Price</th>
-                <th className='p-2 border'>Address</th>
-                <th className='p-2 border'>Status</th>
-                <th className='p-2 border'>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orders.map(order => (
-                <tr key={order._id} className='border-b'>
-                  <td className='p-2 border'>{order.buyer?.username}<br/><span className='text-xs text-gray-500'>{order.buyer?.email}</span></td>
-                  <td className='p-2 border'>{order.crop?.name}<br/><span className='text-xs text-gray-500'>{order.crop?.type}</span></td>
-                  <td className='p-2 border'>{order.quantityOrdered} kg</td>
-                  <td className='p-2 border'>₹{order.proposedPrice}/kg</td>
-                  <td className='p-2 border'>{order.address}</td>
-                  <td className='p-2 border font-semibold'>{order.status}</td>
-                  <td className='p-2 border'>
-                    {order.status === 'pending' && (
-                      <div className='flex gap-2'>
-                        <button
-                          className='bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700'
-                          onClick={() => handleStatusChange(order._id, 'accepted')}
-                        >Accept</button>
-                        <button
-                          className='bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600'
-                          onClick={async () => {
-                            const reason = window.prompt('Please provide a reason for rejection:');
-                            if (!reason) return;
-                            try {
-                              const res = await fetch(`http://localhost:9001/order/update/${order._id}`, {
-                                method: 'PUT',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ status: 'rejected', reason })
-                              });
-                              if (!res.ok) throw new Error('Failed to reject order');
-                              setOrders(orders => orders.filter(o => o._id !== order._id));
-                            } catch {
-                              alert('Failed to reject order');
-                            }
-                          }}
-                        >
-                          Reject
-                        </button>
-                      </div>
-                    )}
-                    <button
-                      className={`bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 mt-2 ${!order.crop?._id ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      onClick={() => {
-                        if (order.crop && order.crop._id) {
-                          navigate(`/chat/${order.buyer?._id || order.buyer?.id}?orderId=${order._id}&cropId=${order.crop._id}`);
-                        }
-                      }}
-                      disabled={!order.crop || !order.crop._id}
-                      title={!order.crop || !order.crop._id ? 'No crop context for this chat' : ''}
-                    >
-                      💬 Message
-                    </button>
-                    {['completed', 'cancelled', 'rejected'].includes(order.status) ? null : (
-                      <button
-                        className='bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 text-xs mt-2'
-                        onClick={() => handleRemoveOrder(order._id)}
-                      >
-                        Remove
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {/* Delete All My Orders button (farmer only) */}
-          <button
-            className='mt-6 bg-orange-600 text-white px-6 py-2 rounded hover:bg-orange-700 font-semibold w-full'
-            onClick={async () => {
-              if (!window.confirm('Are you sure you want to delete all your orders? This will cancel each order.')) return;
-              try {
-                for (const order of orders) {
-                  await fetch(`http://localhost:9001/order/update/${order._id}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ status: 'cancelled' })
-                  });
-                }
-                setOrders([]);
-              } catch {
-                alert('Failed to delete all your orders.');
-              }
-            }}
-          >
-            Delete All My Orders
-          </button>
-        </>
+        <OrderTable
+          orders={orders}
+          userRole="farmer"
+          onStatusChange={handleStatusChange}
+          onRemoveOrder={handleRemoveOrder}
+          onMessageClick={handleMessageClick}
+          onDeleteAllOrders={handleDeleteAllOrders}
+        />
       )}
     </div>
   );

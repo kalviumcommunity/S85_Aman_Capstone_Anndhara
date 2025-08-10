@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-
-const getImageUrl = (imageUrl) => {
-  if (!imageUrl) return null;
-  return imageUrl.startsWith('http')
-    ? imageUrl
-    : `http://localhost:9001${imageUrl}`;
-};
+import { 
+  cropAPI, 
+  userAPI, 
+  ratingAPI, 
+  cartAPI, 
+  getCurrentUser, 
+  isBuyer, 
+  getImageUrl 
+} from '../utils/apiHelper';
 
 const CropDetails = () => {
   const { id } = useParams();
@@ -28,13 +30,12 @@ const CropDetails = () => {
   const [orderMessage, setOrderMessage] = useState('');
   const [addCartMessage, setAddCartMessage] = useState('');
 
-  const user = JSON.parse(localStorage.getItem('user'));
+  const user = getCurrentUser();
 
   useEffect(() => {
     const fetchCrop = async () => {
       try {
-        const res = await fetch(`http://localhost:9001/crop/${id}`);
-        const data = await res.json();
+        const data = await cropAPI.getCropById(id);
         setCrop(data.crop);
         setLoadingCrop(false);
 
@@ -50,12 +51,10 @@ const CropDetails = () => {
     const fetchFarmer = async (farmerId) => {
       setLoadingFarmer(true);
       try {
-        const res = await fetch(`http://localhost:9001/user?id=${farmerId}`);
-        const data1 = await res.json();
-
+        const data = await userAPI.getUsers();
         const farmer =
-          data1.data?.find((user) => user._id === farmerId) ||
-          data1.farmer?.find((user) => user._id === farmerId);
+          data.data?.find((user) => user._id === farmerId) ||
+          data.farmer?.find((user) => user._id === farmerId);
 
         setFarmer(farmer);
       } catch (err) {
@@ -74,8 +73,7 @@ const CropDetails = () => {
     const fetchRatings = async () => {
       setLoadingRatings(true);
       try {
-        const res = await fetch(`http://localhost:9001/rating/getReview`);
-        const data = await res.json();
+        const data = await ratingAPI.getReviews();
 
         if (data.ok && Array.isArray(data.rating)) {
           const farmerRatings = data.rating.filter(r => r.reviewedUser?._id === farmer._id);
@@ -119,21 +117,12 @@ const CropDetails = () => {
     }
 
     try {
-      const res = await fetch(`http://localhost:9001/rating/Review`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${user.token}`,
-        },
-        body: JSON.stringify({
-          rating,
-          comment,
-          reviewer: user.id,
-          reviewedUser: farmer?._id,
-        }),
+      const data = await ratingAPI.createReview({
+        rating,
+        comment,
+        reviewer: user.id,
+        reviewedUser: farmer?._id,
       });
-
-      const data = await res.json();
 
       if (data.ok) {
         setSubmitMessage('Review submitted successfully!');
@@ -151,24 +140,12 @@ const CropDetails = () => {
   };
 
   const handleAddToCart = async () => {
-    if (!user || user.role !== 'buyer') {
+    if (!user || !isBuyer()) {
       setAddCartMessage('You must be logged in as a buyer to add to cart.');
       return;
     }
     try {
-      const res = await fetch('http://localhost:9001/cart/add', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${user.token}`,
-        },
-        body: JSON.stringify({
-          cropId: crop._id,
-          quantity: 1,
-          proposedPrice: crop.pricePerKg,
-        }),
-      });
-      const data = await res.json();
+      const data = await cartAPI.addToCart(crop._id, 1, crop.pricePerKg);
       if (data.success) {
         setAddCartMessage('Added to cart!');
       } else {
@@ -220,7 +197,7 @@ const CropDetails = () => {
               <p><strong>Role:</strong> {farmer.role}</p>
 
               {/* Chat and Order buttons for buyers only */}
-              {user && user.id !== farmer._id && user.role === 'buyer' && (
+              {user && user.id !== farmer._id && isBuyer() && (
                 <div className="mt-6 p-4 bg-green-50 rounded-lg border border-green-200">
                   <button
                     onClick={() => navigate(`/chat/${farmer._id}?cropId=${crop._id}`)}
@@ -237,7 +214,7 @@ const CropDetails = () => {
         </div>
 
         {/* Only show reviews if user is the crop owner (farmer) or a buyer */}
-        {((user && user.role === 'buyer') || (user && user.role === 'farmer' && crop?.seller?._id === user.id)) && (
+        {((user && isBuyer()) || (user && user.role === 'farmer' && crop?.seller?._id === user.id)) && (
           <div className="mt-8 border-t pt-4">
             <h3 className="text-lg font-semibold text-green-800 mb-2">Reviews</h3>
             {loadingRatings ? (
@@ -268,7 +245,7 @@ const CropDetails = () => {
 
             {!user ? (
               <p className="text-red-600">You must be logged in to leave a review.</p>
-            ) : user.role !== 'buyer' ? (
+            ) : !isBuyer() ? (
               <p className="text-red-600">Only buyers can leave a review or comment on crops.</p>
             ) : (
               <form onSubmit={handleSubmitReview} className="space-y-4">
